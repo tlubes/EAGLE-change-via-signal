@@ -1,0 +1,79 @@
+#usage "en: <b>Change the signal of grouped vias</b>\n"
+           "<p>"
+           "Changes the singal of the grouped vias to a new designated signal. This is completed"
+           "with a little trick since Eagle does not ripup vias on nets that are not connected"
+           "to actual parts: It pulls in a 0201 resistor at the origin and creates a ratsnest with"
+           "the via weare interested in and then rips it up so the via disappears and we quickly"
+           "create a new via with the same characteristics as the old one."
+           ""
+           "Make sure you have the 'rcl' library active and the schematic closed!"
+           "<p>"
+           "<author>Author: tlubes@quantumintegrate.com</author><br>"
+       "de: <b>Ändere das Signal mit dem die Vias einer ausgewählten Gruppe verbunden sind</b>\n"
+           "<p>"
+           "Ändert das Signal der Vias in der aktuellen Gruppe zu einem neuen Signl, das wir"
+           "vorher auswählen. Für diesen Schritt bedienen wir uns eines kleinen Trickes: Da" 
+           "Eagle es uns nicht ermöglicht Vias zu lösche, die einem Signal zugehörig sind,"
+           "welches keine Bauteile enthält, platzieren wir einen 0201 Widerstand am Ursprungspunkt"
+           "und verbinden diesen mit dem Signal des Vias. Danach zerreissen wir das Signal und"
+           "löschen den Widerstand. Auf diese Weise verschwindet auch das Via. Dann platzieren"
+           "wir ein neues mit den exakten Eigenschaften an der seblen Position."
+           ""
+           "Stellen Sie sicher, dass Sie die 'rcl' Bibliothek installiert haben und das der Schaltplan geschlossen ist!"
+           "<p>"
+           "<author>Autor: tlubes@quantumintegrate.com</author><br>"
+
+
+string Version = "1.0.0"; 
+
+string clrscript = "~clear~.scr";
+string scriptfile;
+string target_signal = "";
+string arb_name = "__________________________________";
+int counter = 0;
+string via_shape;
+
+if (board) board(B){
+  if(!project.schematic){
+  dlgDialog("Required signal") {
+    dlgLabel("Please enter the name of the signal you want your vias to be connected to");
+        dlgTextEdit(target_signal);
+        dlgPushButton("OK") dlgAccept();
+    };
+    scriptfile = filedir(B.name) + clrscript;
+    output(scriptfile, "wtD"){
+      B.signals(S) {
+        S.vias(V) {
+          if (ingroup(V)) {
+            counter++;
+            printf("add R0201@rcl '%s' (0 0);", arb_name);
+            printf("signal %s %s 1 %s 2;", S.name, arb_name, arb_name);
+            printf("ripup %s;", S.name);
+            printf("delete %s;", arb_name);
+            printf("change drill %fmm;", u2mm(V.drill));
+            if(V.shape[LAYER_VIAS] == VIA_SHAPE_SQUARE){
+              via_shape = "square";
+            }else if(V.shape[LAYER_VIAS] == VIA_SHAPE_OCTAGON){
+              via_shape = "octagon";
+            }else{
+              via_shape = "round";
+            }
+            printf("via '%s' %fmm %s %d-%d (%fmm %fmm);", target_signal, u2mm(V.diameter[LAYER_VIAS]), via_shape, V.start, V.end, u2mm(V.x), u2mm(V.y));
+            break;
+          }
+        }
+      }
+    }
+  }else{
+    dlgMessageBox("!Please close the schematic for this ULP to work - it will not severe the f/b annotation, so just reopen the schematic right after.", "OK");
+  }
+}else {
+    dlgMessageBox("!Start this ULP in the board view.", "OK");
+}
+
+if(!counter){
+  dlgMessageBox("!No group was selected - the script has no effect.", "OK");
+  exit(0);
+}
+
+exit("SCRIPT '" + scriptfile + "';");
