@@ -1,7 +1,7 @@
-#usage "en: <b>Change the signal of vias in current group</b>\n"
+#usage "en: <b>Change the signal of vias with no polygon, wire or part associated</b>\n"
            "<p>"
-           "Changes the signal of grouped vias to a new designated signal. This is completed"
-           "with a little trick since Eagle does not ripup vias on nets that are not connected"
+           "Changes the signal of grouped vias whose signal has not association with any polygon, trace or part."
+           "This is completed with a little trick since Eagle does not ripup vias on nets that are not connected"
            "to actual parts: It pulls in a 0201 resistor and places it at the origin and creates a ratsnest with"
            "the via we are interested in and then rips it up so it disappears and we quickly"
            "create a new via with the same characteristics as the old one."
@@ -9,15 +9,15 @@
            "Make sure you have the 'rcl' library active and the schematic closed!"
            "<p>"
            "<author>Author: tlubes@quantumintegrate.com</author><br>"
-       "de: <b>Ändere das Signal von Vias, die aktuell gruppiert sind</b>\n"
+       "de: <b>Ändere das Signal von Vias, die Verbinudng zu einem Polygon, einer Leiterbahn oder einem Bauteil haben</b>\n"
            "<p>"
-           "Ändert das Signal der Vias in der aktuellen Gruppe zu einem neuen Signal, das wir"
-           "vorher auswählen. Für diesen Schritt bedienen wir uns eines kleinen Tricks: Da" 
-           "Eagle es uns nicht ermöglicht Vias zu löschen, die einem Signal zugehörig sind,"
+           "Ändert das Signal der Vias, dessen Signal mit keinem Polygon, Bauteil oder Leiterbahn in Verbindung steht."
+           "Das Signal wird zuvor geprüft, ob eine der gennanten Verbindungen besteht. Für diesen Schritt bedienen wir uns"
+           "eines kleinen Tricks: Da Eagle es uns nicht ermöglicht Vias zu löschen, die einem Signal zugehörig sind,"
            "welches keine Bauteile enthält, platzieren wir einen 0201 Widerstand am Ursprungspunkt"
            "und verbinden diesen mit dem Signal des Vias. Danach zerreissen wir das Signal und"
            "löschen den Widerstand. Auf diese Weise verschwindet auch das Via. Dann platzieren"
-           "wir ein neues mit den exakten Eigenschaften an der gleichen Position."
+           "wir ein Neues mit den exakten Eigenschaften an der gleichen Position."
            ""
            "Stellen Sie sicher, dass Sie die 'rcl' Bibliothek installiert haben und das der Schaltplan geschlossen ist!"
            "<p>"
@@ -33,6 +33,7 @@ string target_signal = "";
 string arb_name = "__________________________________";
 int counter = 0;
 string via_shape;
+int not_eligible = 0;
 
 if (board) board(B){
   if(!project.schematic){
@@ -41,11 +42,37 @@ if (board) board(B){
         dlgTextEdit(target_signal);
         dlgPushButton("OK") dlgAccept();
     };
+
     scriptfile = filedir(B.name) + clrscript;
     output(scriptfile, "wtD"){
       B.signals(S) {
-        S.vias(V) {
-          if (ingroup(V)) {
+
+        // check if any contacts present
+        if(!not_eligible){
+          S.contactrefs(C){
+            not_eligible = 1;
+            break;
+          }
+        }
+
+        // check if any polygons connected
+        if(!not_eligible){
+          S.polygons(P){
+            not_eligible = 1;
+            break;
+          }
+        }
+
+        // check if any wires connected
+        if(!not_eligible){
+          S.wires(W){
+            not_eligible = 1;
+            break;
+          } 
+        }
+
+        if(!not_eligible){
+          S.vias(V) {
             counter++;
             printf("add R0201@rcl '%s' (0 0);", arb_name);
             printf("signal %s %s 1 %s 2;", S.name, arb_name, arb_name);
@@ -66,6 +93,7 @@ if (board) board(B){
             break;
           }
         }
+        not_eligible = 0;
       }
       printf("ratsnest;");
     }
@@ -77,7 +105,7 @@ if (board) board(B){
 }
 
 if(!counter){
-  dlgMessageBox("!No group was selected - the script has no effect.", "OK");
+  dlgMessageBox("!No eligible vias were detected - script has no effect.", "OK");
   exit(0);
 }
 
