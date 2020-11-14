@@ -1,0 +1,112 @@
+#usage "en: <b>Change the signal of vias with no polygon, wire or part associated</b>\n"
+           "<p>"
+           "Changes the signal of grouped vias whose signal has not association with any polygon, trace or part."
+           "This is completed with a little trick since Eagle does not ripup vias on nets that are not connected"
+           "to actual parts: It pulls in a 0201 resistor and places it at the origin and creates a ratsnest with"
+           "the via we are interested in and then rips it up so it disappears and we quickly"
+           "create a new via with the same characteristics as the old one."
+           ""
+           "Make sure you have the 'rcl' library active and the schematic closed!"
+           "<p>"
+           "<author>Author: tlubes@quantumintegrate.com</author><br>"
+       "de: <b>Ändere das Signal von Vias, die Verbinudng zu einem Polygon, einer Leiterbahn oder einem Bauteil haben</b>\n"
+           "<p>"
+           "Ändert das Signal der Vias, dessen Signal mit keinem Polygon, Bauteil oder Leiterbahn in Verbindung steht."
+           "Das Signal wird zuvor geprüft, ob eine der gennanten Verbindungen besteht. Für diesen Schritt bedienen wir uns"
+           "eines kleinen Tricks: Da Eagle es uns nicht ermöglicht Vias zu löschen, die einem Signal zugehörig sind,"
+           "welches keine Bauteile enthält, platzieren wir einen 0201 Widerstand am Ursprungspunkt"
+           "und verbinden diesen mit dem Signal des Vias. Danach zerreissen wir das Signal und"
+           "löschen den Widerstand. Auf diese Weise verschwindet auch das Via. Dann platzieren"
+           "wir ein Neues mit den exakten Eigenschaften an der gleichen Position."
+           ""
+           "Stellen Sie sicher, dass Sie die 'rcl' Bibliothek installiert haben und das der Schaltplan geschlossen ist!"
+           "<p>"
+           "<author>Autor: tlubes@quantumintegrate.com</author><br>"
+
+// THIS PROGRAM IS PROVIDED AS IS AND WITHOUT WARRANTY OF ANY KIND, EXPRESSED OR IMPLIED
+
+string Version = "1.0.0"; 
+
+string clrscript = "~via_signal_change~.scr";
+string scriptfile;
+string target_signal = "";
+string arb_name = "__________________________________";
+int counter = 0;
+string via_shape;
+int not_eligible = 0;
+
+if (board) board(B){
+  if(!project.schematic){
+  dlgDialog("Required signal") {
+    dlgLabel("Please enter the name of the signal you want your vias to be connected to");
+        dlgTextEdit(target_signal);
+        dlgPushButton("OK") dlgAccept();
+    };
+
+    scriptfile = filedir(B.name) + clrscript;
+    output(scriptfile, "wtD"){
+      B.signals(S) {
+
+        // check if any contacts present
+        if(!not_eligible){
+          S.contactrefs(C){
+            not_eligible = 1;
+            break;
+          }
+        }
+
+        // check if any polygons connected
+        if(!not_eligible){
+          S.polyPours(P){
+            not_eligible = 1;
+            break;
+          }
+        }
+
+        // check if any wires connected
+        if(!not_eligible){
+          S.wires(W){
+            not_eligible = 1;
+            break;
+          } 
+        }
+
+        if(!not_eligible){
+          S.vias(V) {
+            counter++;
+            printf("add R0201@rcl '%s' (0 0);", arb_name);
+            printf("signal %s %s 1 %s 2;", S.name, arb_name, arb_name);
+            printf("ripup %s;", S.name);
+            printf("delete %s;", arb_name);
+            printf("change drill %fmm;", u2mm(V.drill));
+
+            // we need to convert the integer constant to a string to reuse it in the command
+            if(V.shape[LAYER_VIAS] == VIA_SHAPE_SQUARE){
+              via_shape = "square";
+            }else if(V.shape[LAYER_VIAS] == VIA_SHAPE_OCTAGON){
+              via_shape = "octagon";
+            }else{
+              via_shape = "round";
+            }
+
+            printf("via '%s' %fmm %s %d-%d (%fmm %fmm);", target_signal, u2mm(V.diameter[LAYER_VIAS]), via_shape, V.start, V.end, u2mm(V.x), u2mm(V.y));
+            break;
+          }
+        }
+        not_eligible = 0;
+      }
+      printf("ratsnest;");
+    }
+  }else{
+    dlgMessageBox("!Please close the schematic for this ULP to work - it will not severe the f/b annotation, so just reopen the it right after.", "OK");
+  }
+}else {
+    dlgMessageBox("!Start this ULP in the board view.", "OK");
+}
+
+if(!counter){
+  dlgMessageBox("!No eligible vias were detected - script has no effect.", "OK");
+  exit(0);
+}
+
+exit("SCRIPT '" + scriptfile + "';");
